@@ -32,12 +32,13 @@ struct action {
 #define HASFLAG -3
 
 // Action types
+#define ERROR 99
 #define UNKNOWN -1
 #define START 0
 #define REVEAL 1
 #define FLAG 2
 #define STATE 3
-#define REMOVEFLAG 4
+#define REMOVE_FLAG 4
 #define RESET 5
 #define WIN 6
 #define EXIT 7
@@ -56,3 +57,5 @@ void addrtostr(const struct sockaddr *addr, char *str, size_t strsize);
 int addrparse(const char *addrstr, const char *portstr, struct sockaddr_storage *storage);
 int server_sockaddr_init(const char *protocol_version, const char *portstr, struct sockaddr_storage *storage);
 void logexit(const char *msg);
+void printGame(int matrix[4][4]);
+void errorMessage(char* error);

@@ -34,7 +34,6 @@ void printGame(int matrix[4][4]) {
         }
         printf("\n");
     }
-    printf("\n");
 }
 
 

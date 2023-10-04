@@ -64,7 +64,7 @@ void removeFlag(int coordinates[2]) {
 void captureArgs(int argc, char *argv[]) {
     if (argc != 5 || strcmp(argv[3], "-i" )!= 0) {
         printf("Usage: <ipVersion> <portNumber> -i <filePath>\n");
-        return 1;
+        return;
     } else {
         ipVersion = argv[1];
         portNumber = argv[2];
@@ -98,7 +98,7 @@ int updateStatus(struct action clientAction) {
 
 
 
-int main(int argc, int *argv[]) {
+int main(int argc, char *argv[]) {
 
     captureArgs(argc, argv);
     readRevealedGame(filePath); // preenche o tabuleiro gabarito
@@ -156,6 +156,7 @@ int main(int argc, int *argv[]) {
         while(true){
             struct action clientAction;
             int count = recv(csock, &clientAction, sizeof(clientAction), 0);
+            printf("client typee:  %d\n",clientAction.type);
 
             if(count == 0){
                 break;
@@ -165,6 +166,7 @@ int main(int argc, int *argv[]) {
 
             struct action serverFeedback;
 
+
             switch(clientAction.type) {
 
                 case START:
@@ -173,38 +175,37 @@ int main(int argc, int *argv[]) {
                     serverFeedback = computeAction(START, coordinates, currentGame);
                     break;
 
+
+
                 case REVEAL:
                     revealPosition(clientAction.coordinates);
+
                     int updatedStatus = updateStatus(clientAction);
 
-                    switch (updatedStatus) {
-
-                        case WIN :
-                            serverFeedback = computeAction(WIN, clientAction.coordinates, currentGame);
-                            resetGame();
-                            break;
-
-                        case GAMEOVER :
-                            serverFeedback = computeAction(GAMEOVER, clientAction.coordinates, currentGame);
-                            resetGame();
-                            break;
-
-                        case STATE :
-                            revealPosition(clientAction.coordinates);
-                            serverFeedback = computeAction(STATE, clientAction.coordinates, currentGame);
-                            break;
-
-                        default:
-                            break;
-
+                    if(updatedStatus == WIN){
+                        serverFeedback = computeAction(WIN, clientAction.coordinates, currentGame);
+                        resetGame();
                     }
+
+                    if (updatedStatus == GAMEOVER) {
+                        serverFeedback = computeAction(GAMEOVER, clientAction.coordinates, currentGame);
+                        resetGame();
+                    }
+
+
+                    if (updatedStatus == STATE) {
+                        serverFeedback = computeAction(STATE, clientAction.coordinates, currentGame);
+                    }
+
+                    break;
+
 
                 case FLAG:
                     flagPosition(clientAction.coordinates);
                     serverFeedback = computeAction(FLAG, clientAction.coordinates, currentGame);
                     break;
 
-                case REMOVEFLAG:
+                case REMOVE_FLAG:
                     removeFlag(clientAction.coordinates);
                     serverFeedback = computeAction(STATE, clientAction.coordinates, currentGame);
                     break;
@@ -212,7 +213,7 @@ int main(int argc, int *argv[]) {
                 case RESET:
                     resetGame();
                     serverFeedback = computeAction(STATE, clientAction.coordinates, currentGame);
-                    printf("starting new game\n");
+                    break;
 
                 case EXIT:
                     resetGame();
@@ -223,6 +224,7 @@ int main(int argc, int *argv[]) {
                     break;
 
             }
+
             count = send(csock, &serverFeedback, sizeof(serverFeedback), 0);
                 if(count != sizeof(serverFeedback)){
                     logexit("send");

@@ -28,7 +28,7 @@ void computeArgs(int argc, char *argv[]) {
 void initCurrentGame() {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
-            currentGame[i][j] =  DEFAULT;
+            currentGame[i][j] =  ISSECRET;
         }
     }
 }
@@ -58,7 +58,7 @@ int computeCmdType(char *cmd) {
             if (strcmp(command, "reveal") == 0) {
                 cmdType = REVEAL;
             } else if (strcmp(command, "remove_flag") == 0) {
-                cmdType = REMOVEFLAG;
+                cmdType = REMOVE_FLAG;
             } else if (strcmp(command, "reset") == 0) {
                 cmdType = RESET;
             } else {
@@ -101,13 +101,13 @@ bool accepted(int coordinates[2]){
 
 
 bool isFlagged(int coordinates[2]){
-    return currentGame[coordinates[0]][coordinates[1]] == FLAG;
+    return currentGame[coordinates[0]][coordinates[1]] == HASFLAG;
 }
 
 
 
 bool isRevealed(int coordinates[2]){
-    return currentGame[coordinates[0]][coordinates[1]] >= 0;
+    return currentGame[coordinates[0]][coordinates[1]] != -2;
 }
 
 
@@ -115,24 +115,25 @@ bool isRevealed(int coordinates[2]){
 // chama fluxo especifico dependendo do comando do cliente
 struct action computeClientAction(int cmdType, int coordinates[2]) {
     char comma;
+    isAvailable = 1;
 
     switch(cmdType){
 
         case START:
             gameStatus = ONGOING;
             return computeAction(START, coordinates, currentGame);
-            printf("game started");
 
         case REVEAL:
             scanf("%d%c%d", &coordinates[0], &comma, &coordinates[1]);
             if (!accepted(coordinates)) {
                 errorMessage(INVALIDCELL);
                 isAvailable = 0;
-                break;
-            } else if (isRevealed) {
+                return computeAction(ERROR, coordinates, currentGame);
+
+            } else if (isRevealed(coordinates)) {
                 errorMessage(ALREADYREVEALED);
                 isAvailable = 0;
-                break;
+                return computeAction(ERROR, coordinates, currentGame);
             }
             return computeAction(REVEAL, coordinates, currentGame);
 
@@ -149,13 +150,13 @@ struct action computeClientAction(int cmdType, int coordinates[2]) {
             }
             return computeAction(FLAG, coordinates, currentGame);
 
-        case REMOVEFLAG:
+        case REMOVE_FLAG:
             scanf("%d%c%d", &coordinates[0], &comma, &coordinates[1]);
             if (!accepted(coordinates)) {
                 isAvailable = 0;
                 break;
             }
-            return computeAction(REMOVEFLAG, coordinates, currentGame);
+            return computeAction(REMOVE_FLAG, coordinates, currentGame);
 
         case RESET:
             return computeAction(RESET, coordinates, currentGame);
@@ -232,11 +233,16 @@ int main (int argc, char* argv[]) {
         // chamada especifica de acordo com o tipo de acao do cliente
         if (commandType == UNKNOWN) {
             errorMessage(COMMANDNOTFOUND);
-            // tem que continuar esperando um comando valido *********** !!!!!!!!!!!!!!! &*****&**&(*&)
+            continue;
         }
+
 
         //cria uma struct action com o comando e as coordenadas passadas pelo cliente (resquested action do client)
         solicitation = computeClientAction(commandType, coordinates);
+
+        // if (solicitation.type == ERROR) {
+        //     continue;
+        // }
 
         if (isAvailable) {
             // enviando pedido de acao para servidor
@@ -254,7 +260,6 @@ int main (int argc, char* argv[]) {
             // recebendo resposta do servidor
             struct action feedback;
             count = recv(s, &feedback, sizeof(feedback), 0);
-            updateCurrentGame(feedback.board);
 
             // verifica se ja ganhou, perdeu ou se so vai atualizar o board
             if(feedback.type == GAMEOVER) {
@@ -263,9 +268,10 @@ int main (int argc, char* argv[]) {
             } else if (feedback.type == WIN) {
                 printf("YOU WIN!\n");
                 gameStatus = ENDGAME;
-            } else { // so atualizou e printa o tabuleiro
-                printGame(currentGame);
             }
+            updateCurrentGame(feedback.board);
+            printGame(currentGame);
+
         }
     }
     return 0;
