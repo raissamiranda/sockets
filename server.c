@@ -1,81 +1,234 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include "common.h"
 
 
-
-struct action {
-    int type;
-    int coordinates[2];
-    int board[4][4];
-};
+char* ipVersion = "";
+char* portNumber = "";
+char* filePath = NULL;
 
 
-char format(int position) {
-    switch (position) {
-        case -3:
-            return '>';
-        case -2:
-            return '-';
-        case -1:
-            return '*';
-        case 0:
-            return '0';
-        case 1:
-            return '1';
-        case 2:
-            return '2';
-    }
-}
+// todas posicoes reveladas
+int revealedGame[4][4];
+// jogo do cliente em tempo real
+int currentGame[4][4];
 
 
-void print_matrix(struct action* action) {
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            int pos = action->board[i][j];;
-            printf("%c      ", format(pos));
-        }
-        printf("\n");
-    }
-}
-
-
-
-
-struct action current_action;
-
-
-int main(int argc, char *argv[]) {
-
-    if (argc != 5 || strcmp(argv[3], "-i" )!= 0) {
-        printf("Usage: <ipVersion> <portNumber> -i <inputFilePath>\n");
-        return 1;
-    }
-
-    char* ipVersion = argv[1];
-    char* portNumber = argv[2];
-    char* inputFilePath = argv[4];
-
-
+// Le arquivo do terminal e preenche matriz global com o resultado
+void readRevealedGame(char* fileName) {
+    FILE *file;
+    file = fopen(fileName, "r");
     int pos;
     char comma;
-    FILE *file;
-    file = fopen(inputFilePath, "r");
 
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             fscanf (file, "%d%c", &pos, &comma);
-            //scanf ("%d%c", &pos, &comma);
-            current_action.board[i][j] = pos;
+            revealedGame[i][j] = pos;
         }
     }
+    fclose(file);
+}
 
-    print_matrix(&current_action);
+
+// reseta o jogo todo pra -
+void resetGame() {
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            currentGame[i][j] = -2;
+        }
+    }
+}
 
 
-    return 0;
+// Recebe coordenadas e revela no tabuleiro do cliente o certo
+void revealPosition(int coordinates[2]) {
+    currentGame[coordinates[0]][coordinates[1]] = revealedGame[coordinates[0]][coordinates[1]];
+}
+
+
+// Coloca flag em uma posicao
+void flagPosition(int coordinates[2]) {
+    currentGame[coordinates[0]][coordinates[1]] = HASFLAG;
+}
+
+
+// Tira flag de uma posicao
+void removeFlag(int coordinates[2]) {
+    currentGame[coordinates[0]][coordinates[1]] = ISSECRET;
+}
+
+
+// le o terminal
+void captureArgs(int argc, char *argv[]) {
+    if (argc != 5 || strcmp(argv[3], "-i" )!= 0) {
+        printf("Usage: <ipVersion> <portNumber> -i <filePath>\n");
+        return 1;
+    } else {
+        ipVersion = argv[1];
+        portNumber = argv[2];
+        filePath = argv[4];
+    }
+}
+
+bool wonGame(struct action clientAction) {
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            if(!(clientAction.coordinates[0] == i && clientAction.coordinates[1] == j)
+               && (currentGame[i][j] != revealedGame[i][j] && revealedGame[i][j] != HASBOMB)){
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+
+int updateStatus(struct action clientAction) {
+    int cellStatus = revealedGame[clientAction.coordinates[0]][clientAction.coordinates[1]];
+    if (cellStatus == HASBOMB) {
+        return GAMEOVER;
+    } else if (wonGame(clientAction)) {
+        return WIN;
+    }
+    return STATE;
 }
 
 
 
 
+int main(int argc, int *argv[]) {
+
+    captureArgs(argc, argv);
+    readRevealedGame(filePath); // preenche o tabuleiro gabarito
+    printGame(revealedGame);    // servidor printa o resultado quando inicia
+
+    struct sockaddr_storage storage;
+    if(server_sockaddr_init(ipVersion, portNumber, &storage)){
+        logexit("server_sockaddr_init");
+    }
+
+
+
+
+    // socketssss ----------------------------------------------------
+    // Socket
+    int s;
+    s = socket(storage.ss_family, SOCK_STREAM, 0);
+    if(s == -1){
+        logexit("socket");
+    }
+
+    // Reuse
+    int enable = 1;
+    if(setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) != 0){
+        logexit("setsockopt");
+    }
+
+    // Bind
+    struct sockaddr *addr = (struct sockaddr *)(&storage);
+    if(bind(s, addr, sizeof(storage)) != 0){
+        logexit("bind");
+    }
+
+    // Listen
+    if(listen(s, 10) != 0){
+        logexit("listen");
+    }
+
+
+
+    while(true) {
+
+        struct sockaddr_storage cstorage;
+        struct sockaddr *caddr = (struct sockaddr *) &cstorage;
+        socklen_t caddrlen = sizeof(cstorage);
+
+        int csock = accept(s, caddr, &caddrlen);
+        printf("client connected\n");
+
+        if(csock == -1){
+            logexit("accept");
+        }
+
+
+        while(true){
+            struct action clientAction;
+            int count = recv(csock, &clientAction, sizeof(clientAction), 0);
+
+            if(count == 0){
+                break;
+            } else if(count == -1){
+                logexit("recv");
+            }
+
+            struct action serverFeedback;
+
+            switch(clientAction.type) {
+
+                case START:
+                    resetGame();
+                    int coordinates[2] = {0,0};
+                    serverFeedback = computeAction(START, coordinates, currentGame);
+                    break;
+
+                case REVEAL:
+                    revealPosition(clientAction.coordinates);
+                    int updatedStatus = updateStatus(clientAction);
+
+                    switch (updatedStatus) {
+
+                        case WIN :
+                            serverFeedback = computeAction(WIN, clientAction.coordinates, currentGame);
+                            resetGame();
+                            break;
+
+                        case GAMEOVER :
+                            serverFeedback = computeAction(GAMEOVER, clientAction.coordinates, currentGame);
+                            resetGame();
+                            break;
+
+                        case STATE :
+                            revealPosition(clientAction.coordinates);
+                            serverFeedback = computeAction(STATE, clientAction.coordinates, currentGame);
+                            break;
+
+                        default:
+                            break;
+
+                    }
+
+                case FLAG:
+                    flagPosition(clientAction.coordinates);
+                    serverFeedback = computeAction(FLAG, clientAction.coordinates, currentGame);
+                    break;
+
+                case REMOVEFLAG:
+                    removeFlag(clientAction.coordinates);
+                    serverFeedback = computeAction(STATE, clientAction.coordinates, currentGame);
+                    break;
+
+                case RESET:
+                    resetGame();
+                    serverFeedback = computeAction(STATE, clientAction.coordinates, currentGame);
+                    printf("starting new game\n");
+
+                case EXIT:
+                    resetGame();
+                    printf("client disconnected\n");
+                    break;
+
+                default:
+                    break;
+
+            }
+            count = send(csock, &serverFeedback, sizeof(serverFeedback), 0);
+                if(count != sizeof(serverFeedback)){
+                    logexit("send");
+                }
+        }
+        close(csock);
+    }
+    return 0;
+}
