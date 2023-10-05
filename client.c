@@ -12,7 +12,7 @@ int isAvailable = 1;
 void computeArgs(int argc, char *argv[]) {
     if (argc != 3) {
         printf("Usage: <ipVersion> <portNumber>\n");
-        return 1;
+        return;
     } else {
         ipVersion = argv[1];
         port = argv[2];

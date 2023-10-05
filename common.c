@@ -16,6 +16,7 @@ char format(int position) {
         case 2:
             return '2';
     }
+    return 'r';
 }
 
 // Prints error message
