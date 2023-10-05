@@ -156,7 +156,6 @@ int main(int argc, char *argv[]) {
         while(true){
             struct action clientAction;
             int count = recv(csock, &clientAction, sizeof(clientAction), 0);
-            printf("client typee:  %d\n",clientAction.type);
 
             if(count == 0){
                 break;
