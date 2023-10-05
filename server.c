@@ -9,13 +9,13 @@ char* portNumber = "";
 char* filePath = NULL;
 
 
-// todas posicoes reveladas
+// Board used as answer key
 int revealedGame[4][4];
-// jogo do cliente em tempo real
+// Client's updated current game
 int currentGame[4][4];
 
 
-// Le arquivo do terminal e preenche matriz global com o resultado
+// Reads the revealed game from a file
 void readRevealedGame(char* fileName) {
     FILE *file;
     file = fopen(fileName, "r");
@@ -32,7 +32,7 @@ void readRevealedGame(char* fileName) {
 }
 
 
-// reseta o jogo todo pra -
+// Reset game as all hiddden
 void resetGame() {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
@@ -42,25 +42,25 @@ void resetGame() {
 }
 
 
-// Recebe coordenadas e revela no tabuleiro do cliente o certo
+// Reveals specified position based on answer key board
 void revealPosition(int coordinates[2]) {
     currentGame[coordinates[0]][coordinates[1]] = revealedGame[coordinates[0]][coordinates[1]];
 }
 
 
-// Coloca flag em uma posicao
+// Inserts flag at the specified position
 void flagPosition(int coordinates[2]) {
     currentGame[coordinates[0]][coordinates[1]] = HASFLAG;
 }
 
 
-// Tira flag de uma posicao
+// Removes flag at the specified position
 void removeFlag(int coordinates[2]) {
     currentGame[coordinates[0]][coordinates[1]] = ISSECRET;
 }
 
 
-// le o terminal
+// Takes the command line arguments for ip version and port number
 void captureArgs(int argc, char *argv[]) {
     if (argc != 5 || strcmp(argv[3], "-i" )!= 0) {
         printf("Usage: <ipVersion> <portNumber> -i <filePath>\n");
@@ -72,6 +72,8 @@ void captureArgs(int argc, char *argv[]) {
     }
 }
 
+
+// Verifies if the current game is an won situation
 bool wonGame(struct action clientAction) {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
@@ -85,6 +87,7 @@ bool wonGame(struct action clientAction) {
 }
 
 
+// Verifies if, with the client's action, the new board status is game over, won or continue the game
 int updateStatus(struct action clientAction) {
     int cellStatus = revealedGame[clientAction.coordinates[0]][clientAction.coordinates[1]];
     if (cellStatus == HASBOMB) {
@@ -97,53 +100,50 @@ int updateStatus(struct action clientAction) {
 
 
 
-
 int main(int argc, char *argv[]) {
 
-    captureArgs(argc, argv);
-    readRevealedGame(filePath); // preenche o tabuleiro gabarito
-    printGame(revealedGame);    // servidor printa o resultado quando inicia
+    captureArgs(argc, argv);     // Initializes ip version and port number
+    readRevealedGame(filePath); // Reads answer key board
+    printGame(revealedGame);    // Dumps revealed game
 
+    // Stores information about the IP version and port
     struct sockaddr_storage storage;
     if(server_sockaddr_init(ipVersion, portNumber, &storage)){
         logexit("server_sockaddr_init");
     }
 
-
-
-
-    // socketssss ----------------------------------------------------
-    // Socket
+    // Creates socket for TCP communication
     int s;
     s = socket(storage.ss_family, SOCK_STREAM, 0);
     if(s == -1){
         logexit("socket");
     }
 
-    // Reuse
+    // Enables reuse mode
     int enable = 1;
     if(setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) != 0){
         logexit("setsockopt");
     }
 
-    // Bind
+    // Bind operation (associates an adress with network socket)
     struct sockaddr *addr = (struct sockaddr *)(&storage);
     if(bind(s, addr, sizeof(storage)) != 0){
         logexit("bind");
     }
 
-    // Listen
+    // Listen operation (allows incoming connections)
     if(listen(s, 10) != 0){
         logexit("listen");
     }
 
 
-
     while(true) {
 
+        // Accepts an incoming client connection
         struct sockaddr_storage cstorage;
         struct sockaddr *caddr = (struct sockaddr *) &cstorage;
         socklen_t caddrlen = sizeof(cstorage);
+
 
         int csock = accept(s, caddr, &caddrlen);
         printf("client connected\n");
@@ -153,8 +153,10 @@ int main(int argc, char *argv[]) {
         }
 
 
+        // Computes client's request
         while(true){
             struct action clientAction;
+            // Receives client's command
             int count = recv(csock, &clientAction, sizeof(clientAction), 0);
 
             if(count == 0){
@@ -163,22 +165,18 @@ int main(int argc, char *argv[]) {
                 logexit("recv");
             }
 
-            struct action serverFeedback;
+            struct action serverFeedback;                // Feedback structure sent to the client
 
-
+            // Creates the structure based on client's request
             switch(clientAction.type) {
-
                 case START:
                     resetGame();
                     int coordinates[2] = {0,0};
                     serverFeedback = computeAction(START, coordinates, currentGame);
                     break;
 
-
-
                 case REVEAL:
                     revealPosition(clientAction.coordinates);
-
                     int updatedStatus = updateStatus(clientAction);
 
                     if(updatedStatus == WIN){
@@ -191,13 +189,11 @@ int main(int argc, char *argv[]) {
                         resetGame();
                     }
 
-
                     if (updatedStatus == STATE) {
                         serverFeedback = computeAction(STATE, clientAction.coordinates, currentGame);
                     }
 
                     break;
-
 
                 case FLAG:
                     flagPosition(clientAction.coordinates);
@@ -224,6 +220,7 @@ int main(int argc, char *argv[]) {
 
             }
 
+            // Sends the updated structure with the new board to the client
             count = send(csock, &serverFeedback, sizeof(serverFeedback), 0);
                 if(count != sizeof(serverFeedback)){
                     logexit("send");

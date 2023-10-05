@@ -17,11 +17,7 @@ struct action {
 #include <arpa/inet.h>
 #include <unistd.h>
 
-
-// valor default pras posicoes
-#define DEFAULT -5
-
-// game status
+// Game status
 #define ONGOING 1
 #define ENDGAME 0
 
@@ -32,7 +28,7 @@ struct action {
 #define HASFLAG -3
 
 // Action types
-#define ERROR 99
+#define ERROR -5
 #define UNKNOWN -1
 #define START 0
 #define REVEAL 1

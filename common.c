@@ -1,7 +1,6 @@
 #include "common.h"
 
-
-// Formata numeros para caracteres apresentaveis
+// Applies formatting to client's visible board
 char format(int position) {
     switch (position) {
         case -3:
@@ -19,13 +18,13 @@ char format(int position) {
     }
 }
 
-
+// Prints error message
 void errorMessage(char* error) {
     printf("%s\n", error);
 }
 
 
-// Printa matriz recebendo action
+// Prints board
 void printGame(int matrix[4][4]) {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
@@ -37,7 +36,7 @@ void printGame(int matrix[4][4]) {
 }
 
 
-
+// Create the common structure for communication
 struct action computeAction(int type, int coordinates[2], int game[4][4]) {
     struct action newAction;
     newAction.type = type;
@@ -54,11 +53,7 @@ struct action computeAction(int type, int coordinates[2], int game[4][4]) {
 }
 
 
-
-
-
-
-
+// Verifies ipv4/ipv6 types
 void addrtostr(const struct sockaddr *addr, char *str, size_t strsize){
     int version;
     char addrstr[INET6_ADDRSTRLEN+1] = "";
@@ -92,14 +87,13 @@ void addrtostr(const struct sockaddr *addr, char *str, size_t strsize){
 }
 
 
-
 void logexit(const char *msg) {
     perror(msg);
     exit(EXIT_FAILURE);
 }
 
 
-
+// Analyses ip version and port for sockaddr_storage structure
 int addrparse(const char *addrstr, const char *portstr, struct sockaddr_storage *storage){
 
     if(addrstr == NULL || portstr == NULL){
@@ -135,7 +129,7 @@ int addrparse(const char *addrstr, const char *portstr, struct sockaddr_storage 
 }
 
 
-
+// Initializes structure with server configuration information
 int server_sockaddr_init(const char *proto, const char *portstr, struct sockaddr_storage *storage){
 
     uint16_t port = (uint16_t) atoi(portstr);
@@ -149,7 +143,7 @@ int server_sockaddr_init(const char *proto, const char *portstr, struct sockaddr
     if(0 == strcmp(proto, "v4")){
         struct sockaddr_in *addr4 = (struct sockaddr_in *) storage;
         addr4->sin_family = AF_INET;
-        addr4->sin_addr.s_addr = INADDR_ANY; //Qualquer add disponivel no computador
+        addr4->sin_addr.s_addr = INADDR_ANY;
         addr4->sin_port = port;
         return 0;
     }
@@ -157,7 +151,7 @@ int server_sockaddr_init(const char *proto, const char *portstr, struct sockaddr
     else if(0 == strcmp(proto, "v6")){
         struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *) storage;
         addr6->sin6_family = AF_INET6;
-        addr6->sin6_addr = in6addr_any; //Qualquer add disponivel no computador v6
+        addr6->sin6_addr = in6addr_any;
         addr6->sin6_port = port;
         return 0;
     }
@@ -165,5 +159,4 @@ int server_sockaddr_init(const char *proto, const char *portstr, struct sockaddr
     else{
         return -1;
     }
-
 }

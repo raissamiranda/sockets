@@ -1,21 +1,17 @@
 #include "common.h"
 
-
-
+// Client's current game
 int currentGame[4][4];
-
-
 
 char *ipVersion = "";
 char *port = "";
 int gameStatus;
 int isAvailable = 1;
 
-
-
-// Le os argumentos passados pelo cliente (./bla ip port)
+// Takes the command line arguments for ip version and port number
 void computeArgs(int argc, char *argv[]) {
     if (argc != 3) {
+        printf("Usage: <ipVersion> <portNumber>\n");
         return 1;
     } else {
         ipVersion = argv[1];
@@ -24,7 +20,7 @@ void computeArgs(int argc, char *argv[]) {
 }
 
 
-// inicializa o currentGame antes de qualquer comando ser enviado como tudo -1
+// Initializes all board cells as hidden
 void initCurrentGame() {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
@@ -34,9 +30,7 @@ void initCurrentGame() {
 }
 
 
-
-
-// Retorna o tipo do comando colocado pelo cliente
+// Returns the client's command input type
 int computeCmdType(char *cmd) {
     char *command = strtok(cmd, " ");
     int cmdType;
@@ -90,29 +84,24 @@ int computeCmdType(char *cmd) {
     return cmdType;
 }
 
-
-
-
+// Verifies client's coordinates input range
 bool accepted(int coordinates[2]){
     return coordinates[0] < 4 && coordinates[0] >= 0 &&
            coordinates[1] < 4 && coordinates[1] >= 0;
 }
 
-
-
+// Verifies if a cell has flag
 bool isFlagged(int coordinates[2]){
     return currentGame[coordinates[0]][coordinates[1]] == HASFLAG;
 }
 
-
-
+// Verifies if a cell is already revealed
 bool isRevealed(int coordinates[2]){
     return currentGame[coordinates[0]][coordinates[1]] != -2;
 }
 
 
-
-// chama fluxo especifico dependendo do comando do cliente
+// Computes client command and returns the structure sent over socket
 struct action computeClientAction(int cmdType, int coordinates[2]) {
     char comma;
     isAvailable = 1;
@@ -172,8 +161,7 @@ struct action computeClientAction(int cmdType, int coordinates[2]) {
 }
 
 
-
-
+// Updates client's board  with the one received by server
 void updateCurrentGame(int feedback[4][4]) {
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
@@ -187,68 +175,51 @@ void updateCurrentGame(int feedback[4][4]) {
 
 int main (int argc, char* argv[]) {
 
-    computeArgs(argc, argv);
-    initCurrentGame();
+    computeArgs(argc, argv);  // Initializes ip version and port number
+    initCurrentGame();        // Starts initial board
 
 
-
-
-    // SOCKETS -----------------------------------------------
+    // Stores information about the IP version and port
     struct sockaddr_storage storage;
     if(addrparse(ipVersion, port, &storage) != 0){
         logexit("addrparse");
     }
 
-    // Inicializar Socket
+    // Creates socket for TCP communication
     int s;
     s = socket(storage.ss_family, SOCK_STREAM, 0);
     if(s == -1){
         logexit("socket");
     }
 
-    // Inicializar Conexao
+    // Creates connection
     struct sockaddr *addr = (struct sockaddr *)(&storage);
     if(connect(s, addr, sizeof(storage)) != 0){
         logexit("connect");
     }
 
-
-
-
-
-    // LENDO COMANDO ---------------------------------------
-    // variavel p/ o comando inserido pelo cliente
     char cmd[1024];
-
-    // Inicio da leitura do que o cliente coloca no terminal
+    // Computes client's input
     while(1) {
-        // tentativa de acao do cliente
-        struct action solicitation;
+        struct action solicitation;                 // Structure sent to the server
 
-        // le o nome do comando
         scanf("%s", cmd);
         int commandType = computeCmdType(cmd);
-        int coordinates[2]; // cria coordenadas lixo por enquanto
+        int coordinates[2];
 
-        // chamada especifica de acordo com o tipo de acao do cliente
         if (commandType == UNKNOWN) {
-            errorMessage(COMMANDNOTFOUND);
+            errorMessage(COMMANDNOTFOUND);          // For invalid command
             continue;
         }
 
-
-        //cria uma struct action com o comando e as coordenadas passadas pelo cliente (resquested action do client)
+        // Creates the structure with client's request
         solicitation = computeClientAction(commandType, coordinates);
 
-        // if (solicitation.type == ERROR) {
-        //     continue;
-        // }
-
         if (isAvailable) {
-            // enviando pedido de acao para servidor
+            // Send to server
             int count = send(s, &solicitation, sizeof(solicitation), 0);
 
-            if (commandType == EXIT) {
+            if (commandType == EXIT) {              // Closes connection
                 close(s);
                 break;
             }
@@ -257,11 +228,11 @@ int main (int argc, char* argv[]) {
                 logexit("send");
             }
 
-            // recebendo resposta do servidor
+            // This will be the structure received by server
             struct action feedback;
             count = recv(s, &feedback, sizeof(feedback), 0);
 
-            // verifica se ja ganhou, perdeu ou se so vai atualizar o board
+            // Verifies server feedback, the options are win, gameover or to continue the game
             if(feedback.type == GAMEOVER) {
                 printf("GAME OVER\n");
                 gameStatus = ENDGAME;
@@ -271,7 +242,6 @@ int main (int argc, char* argv[]) {
             }
             updateCurrentGame(feedback.board);
             printGame(currentGame);
-
         }
     }
     return 0;
